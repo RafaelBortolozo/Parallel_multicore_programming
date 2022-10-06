@@ -22,9 +22,11 @@ class Filosofo(Thread):
             print(Fore.GREEN + f"{self.nome} - pensando")
             sleep(tempo_aleatorio) 
             
+            # Enquanto não conseguir comer, vai acumulando tempo sem comer
             while not self.comer():
                 tempo_acumulado += tempo_aleatorio
-                print(f"{self.nome} - {tempo_acumulado}/{self.tempo_maximo_sem_comer}")
+                
+                # Se passar muito tempo sem comer, come imediatamente
                 if (tempo_acumulado + 3) > self.tempo_maximo_sem_comer:  
                     self.garfo_esquerdo.acquire(True)
                     self.garfo_direito.acquire(True)
@@ -77,7 +79,7 @@ class Filosofo(Thread):
             return False
 
 garfos = [Lock() for _ in range(5)]
-mesa = [Filosofo(i+1, garfos[i%5], garfos[(i+1)%5]) for i in range(5)]
+mesa = [Filosofo(i+1, garfos[i], garfos[(i+1)%5]) for i in range(5)]
 
 for filosofo in mesa:
     filosofo.start()  
