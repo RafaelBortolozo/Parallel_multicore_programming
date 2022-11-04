@@ -8,79 +8,70 @@ class Filosofo(Thread):
         Thread.__init__(self)
         self.id = id
         self.nome = f"Filósofo {id}"
-        self.tempo_alimentacao = randint(1,3) # Duração da refeição
-        self.tempo_maximo_sem_comer = randint(13,25) # Tempo máximo permitido sem comer
-        self.garfo_esquerdo = garfo_esquerdo       
+        self.tempo_alimentacao = randint(2,3) # Duração da refeição
+        self.tempo_maximo_sem_comer = randint(3,4) # Tempo máximo permitido sem comer
+        self.garfo_esquerdo = garfo_esquerdo
         self.garfo_direito = garfo_direito
-        self.pratos_consumidos = 0
 
     # Funcao principal
     def run(self):
+        breakLoopMessage = False
         tempo_acumulado = 0
-        while 1:
-            tempo_aleatorio = randint(3, 8)
-            print(Fore.GREEN + f"{self.nome} - pensando")
-            sleep(tempo_aleatorio) 
-            
-            # Enquanto não conseguir comer, vai acumulando tempo sem comer
-            while not self.comer():
-                tempo_acumulado += tempo_aleatorio
-                
-                # Se passar muito tempo sem comer, come imediatamente
-                if (tempo_acumulado + 3) > self.tempo_maximo_sem_comer:  
-                    self.garfo_esquerdo.acquire(True)
-                    self.garfo_direito.acquire(True)
-                    print(Fore.RED + f"{self.nome} - comendo (starvation)")
-                    sleep(self.tempo_alimentacao)
-                    self.pratos_consumidos += 1
-                    self.garfo_esquerdo.release()  # libera o garfo
-                    self.garfo_direito.release()  # libera o garfo
-                sleep(tempo_aleatorio)
 
+        while 1:
+            print(Fore.GREEN + f"{self.nome} - pensando")
+            sleep(randint(5, 6))
+            
+            # Enquanto não conseguir comer, vai acumulando tempo
+            # A cada segundo, uma nova tentativa de comer 
+            while not self.comer(tempo_acumulado):
+                tempo_acumulado += 1
+                
+                if not breakLoopMessage:
+                    print(Fore.YELLOW + f"{self.nome} - Esperando")
+                    breakLoopMessage = True
+                
+                sleep(1)
+
+            breakLoopMessage = False
             tempo_acumulado = 0
 
-    # Tenta comer
-    def comer(self):
-        print(Fore.YELLOW + f"{self.nome} - esperando")
+    # Tenta comer, se conseguir então retorna True
+    def comer(self, tempo_acumulado):
         garfo1, garfo2 = self.garfo_esquerdo, self.garfo_direito
-        
-        # Tenta pegar os dois garfos com delay (um garfo de cada vez);
-        # Começa pelo lado em que há um garfo disponivel.
-        if (not garfo1.locked()):
-            lockedGarfo1 = not garfo1.acquire(True)
-            sleep(0.5)
-            lockedGarfo2 = not garfo2.acquire(True)
 
-        elif (not garfo2.locked()): 
-            lockedGarfo2 = not garfo2.acquire(True)
-            sleep(0.5)
-            lockedGarfo1 = not garfo1.acquire(True)
-
-        # Garfos ocupados, não consegue comer
-        else:
-            return False 
-
-        
-        # Se conseguiu pegar os garfos, então come
-        if (not lockedGarfo1 and not lockedGarfo2):
-            print(Fore.RED + f"{self.nome} - comendo")
+        # Se passar muito tempo sem comer, come imediatamente (solução do starvation)
+        if tempo_acumulado >= self.tempo_maximo_sem_comer:
+            garfo1.acquire(True)
+            garfo2.acquire(True)
+            print(Fore.RED + f"{self.nome} - comendo (starvation)")
             sleep(self.tempo_alimentacao)
-            self.pratos_consumidos += 1
-            garfo1.release()  # libera garfo 1
-            garfo2.release()  # libera garfo 2
+            garfo1.release()  # libera o garfo
+            garfo2.release()  # libera o garfo
             return True
 
-        # Se não, devolve o garfo (solução do deadlock)
-        elif (lockedGarfo1):
+        # Tenta pegar os garfos (solução do deadlock)
+        if not garfo1.locked():
+            garfo1.acquire(False)
+        else:
+            return False
+
+        if not garfo2.locked():
+            garfo2.acquire(False)
+        else:
             garfo1.release()
             return False
-        else:
-            garfo2.release()
-            return False
+
+        # Se conseguiu pegar os garfos, então come
+        print(Fore.RED + f"{self.nome} - comendo")
+        sleep(self.tempo_alimentacao)
+        garfo1.release()  # libera garfo 1
+        garfo2.release()  # libera garfo 2
+        return True
 
 garfos = [Lock() for _ in range(5)]
 mesa = [Filosofo(i+1, garfos[i], garfos[(i+1)%5]) for i in range(5)]
 
 for filosofo in mesa:
-    filosofo.start()  
+    filosofo.start()
     sleep(0.2)
